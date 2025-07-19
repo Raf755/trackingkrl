@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html>
 <head>
   <title>Pelacak KA727 Solo Balapan – Yogyakarta</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,8 +6,10 @@
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
     #info {
-      position: absolute; top: 0; width: 100%; background: #b30000; color: white;
-      padding: 10px; font-family: sans-serif; z-index: 999;
+      position: absolute; top: 0; left: 0; right: 0;
+      background: darkred; color: white; padding: 10px;
+      font-family: sans-serif; font-size: 14px;
+      z-index: 1000;
     }
   </style>
 </head>
@@ -16,85 +17,101 @@
   <div id="info">
     🚆 Kereta KRL KA727 Solo Balapan – Yogyakarta<br>
     Rute: Solo Balapan → Yogyakarta<br>
-    Status: <span id="status">Memuat...</span><br>
-    🌡️ Suhu: N/A ℃ 📟 Kecepatan: <span id="kecepatan">N/A</span> km/jam |
-    📍 Stasiun berikutnya: <span id="stasiunBerikutnya">N/A</span> ✏️ Jarak: <span id="jarak">N/A</span> km
+    Status: Berjalan<br>
+    🌡️ Suhu: N/A ℃ 🛤️ Kecepatan: <span id="kecepatan">0.0</span> km/jam |
+    📍 Stasiun berikutnya: <span id="stasiunBerikutnya">-</span> ✏️
+    Jarak: <span id="jarak">-</span> km
   </div>
-  <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([-7.6, 110.7], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
+  <div id="map"></div>  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>  <script>
     const rute = [
-      ['Solo Balapan', -7.556868, 110.821221],
-      ['Purwosari', -7.561491, 110.796383],
-      ['Gawok', -7.589437, 110.744549],
-      ['Delanggu', -7.622235, 110.706595],
-      ['Ceper', -7.668951, 110.674844],
-      ['Klaten', -7.712433, 110.602911],
-      ['Srowot', -7.741498, 110.549159],
-      ['Brambanan', -7.756670, 110.500398],
-      ['Maguwo', -7.785123, 110.436743],
-      ['Lempuyangan', -7.790080, 110.375413],
-      ['Yogyakarta', -7.789328, 110.363068]
+      ["Solo Balapan", -7.556868, 110.821221],
+      ["Purwosari", -7.561491, 110.796383],
+      ["Gawok", -7.589437, 110.744549],
+      ["Delanggu", -7.622235, 110.706595],
+      ["Ceper", -7.668951, 110.674844],
+      ["Klaten", -7.712433, 110.602911],
+      ["Srowot", -7.741498, 110.549159],
+      ["Brambanan", -7.756670, 110.500398],
+      ["Maguwo", -7.783097, 110.430144],
+      ["Lempuyangan", -7.789189, 110.374139],
+      ["Yogyakarta", -7.789471, 110.363340]
     ];
+
+    let currentIndex = 0;
+    let sudahLewatStasiun = false;
+
+    const map = L.map('map').setView(rute[0].slice(1), 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
 
     rute.forEach(([nama, lat, lon]) => {
       L.marker([lat, lon]).addTo(map).bindPopup(nama);
     });
 
-    const jalur = rute.map(([_, lat, lon]) => [lat, lon]);
-    L.polyline(jalur, {color: 'red', weight: 3}).addTo(map);
+    const garis = L.polyline(rute.map(r => [r[1], r[2]]), {color: 'red'}).addTo(map);
 
-    const userMarker = L.marker([0, 0], {icon: L.icon({
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-      iconSize: [25, 25], iconAnchor: [12, 12]
-    })}).addTo(map);
+    const markerKereta = L.marker(rute[0].slice(1), {
+      icon: L.icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/34/34627.png",
+        iconSize: [25, 25]
+      })
+    }).addTo(map);
 
     function hitungJarak(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
                 Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    function updateTerdekat(lat, lon) {
-      let minJarak = Infinity;
-      let stasiun = '';
-      rute.forEach(([nama, slat, slon]) => {
-        const jarak = hitungJarak(lat, lon, slat, slon);
-        if (jarak < minJarak) {
-          minJarak = jarak;
-          stasiun = nama;
-        }
-      });
-      document.getElementById('stasiunBerikutnya').innerText = stasiun;
-      document.getElementById('jarak').innerText = minJarak.toFixed(2);
+    function updateStasiun(lat, lon) {
+      const [namaSekarang, latSekarang, lonSekarang] = rute[currentIndex];
+      const jarakKeSekarang = hitungJarak(lat, lon, latSekarang, lonSekarang);
+
+      if (jarakKeSekarang < 0.15) {
+        sudahLewatStasiun = true;
+      }
+
+      if (jarakKeSekarang > 0.3 && sudahLewatStasiun && currentIndex < rute.length - 1) {
+        currentIndex++;
+        sudahLewatStasiun = false;
+      }
+
+      const [namaBerikutnya, latBerikutnya, lonBerikutnya] = rute[currentIndex];
+      const jarakBerikutnya = hitungJarak(lat, lon, latBerikutnya, lonBerikutnya);
+
+      document.getElementById("stasiunBerikutnya").innerText = namaBerikutnya;
+      document.getElementById("jarak").innerText = jarakBerikutnya.toFixed(2);
     }
+
+    let prevLat = null, prevLon = null, prevTime = null;
 
     navigator.geolocation.watchPosition(pos => {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
-      const speed = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(1) : 0;
+      markerKereta.setLatLng([lat, lon]);
 
-      userMarker.setLatLng([lat, lon]);
-      map.setView([lat, lon]);
-      document.getElementById('status').innerText = 'Berjalan';
-      document.getElementById('kecepatan').innerText = speed;
-      updateTerdekat(lat, lon);
+      if (prevLat !== null) {
+        const jarak = hitungJarak(prevLat, prevLon, lat, lon);
+        const waktu = (Date.now() - prevTime) / 3600000;
+        const kecepatan = jarak / waktu;
+        document.getElementById("kecepatan").innerText = kecepatan.toFixed(1);
+      }
+
+      prevLat = lat;
+      prevLon = lon;
+      prevTime = Date.now();
+
+      updateStasiun(lat, lon);
     }, err => {
-      document.getElementById('status').innerText = 'GPS Tidak Aktif';
+      alert("Gagal mendapatkan lokasi: " + err.message);
     }, {
-      enableHighAccuracy: true
+      enableHighAccuracy: true,
+      maximumAge: 1000
     });
-  </script>
-</body>
+  </script></body>
 </html>
