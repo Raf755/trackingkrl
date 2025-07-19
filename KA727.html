@@ -1,120 +1,96 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html>
 <head>
-  <title>Pelacak KRL KA727</title>
+  <title>KA 727 Real-Time Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
-    .info {
-      background: #c00; color: #fff; padding: 10px; font-family: sans-serif;
+    .info-box {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      z-index: 1000;
     }
-    .info span { display: inline-block; margin-right: 15px; }
   </style>
 </head>
 <body>
-  <div class="info">
-    🚆 KRL KA727 Solo Balapan → Yogyakarta <br>
-    <span id="status">Status: -</span>
-    <span>🌡️ Suhu: N/A ℃</span>
-    <span>🚉 Kecepatan: <span id="speed">0</span> km/jam</span>
-    <br>
-    📍 Stasiun berikutnya: <span id="nextStation">-</span>
-    ✏️ Jarak: <span id="distance">-</span> km
-  </div>
-  <div id="map"></div>
+<div id="map"></div>
+<div class="info-box" id="status"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const jadwal = [
+  { nama: "Palur", lat: -7.555802, lng: 110.879986, tiba: null,      berangkat: "18:05:00" },
+  { nama: "Solo Jebres", lat: -7.562606, lng: 110.848329, tiba: "18:11:00", berangkat: "18:12:00" },
+  { nama: "Solo Balapan", lat: -7.556868, lng: 110.821221, tiba: "18:19:00", berangkat: "18:20:00" },
+  { nama: "Purwosari", lat: -7.561491, lng: 110.796383, tiba: "18:24:00", berangkat: "18:25:00" },
+  { nama: "Gawok", lat: -7.589437, lng: 110.744549, tiba: "18:31:00", berangkat: "18:32:00" },
+  { nama: "Delanggu", lat: -7.622235, lng: 110.706595, tiba: "18:37:00", berangkat: "18:38:00" },
+  { nama: "Ceper", lat: -7.668951, lng: 110.674844, tiba: "18:44:00", berangkat: "18:45:00" },
+  { nama: "Klaten", lat: -7.712433, lng: 110.602911, tiba: "18:53:00", berangkat: "18:54:00" },
+  { nama: "Srowot", lat: -7.741498, lng: 110.549159, tiba: "19:00:00", berangkat: "19:01:00" },
+  { nama: "Brambanan", lat: -7.756670, lng: 110.500398, tiba: "19:06:00", berangkat: "19:07:00" },
+  { nama: "Maguwo", lat: -7.785123, lng: 110.436743, tiba: "19:14:00", berangkat: "19:15:00" },
+  { nama: "Lempuyangan", lat: -7.790080, lng: 110.375413, tiba: "19:21:00", berangkat: "19:22:00" },
+  { nama: "Tugu", lat: -7.789328, lng: 110.363068, tiba: "19:25:00", berangkat: null }
+];
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const stasiunList = [
-      ["Solo Balapan", -7.556868, 110.821221],
-      ["Purwosari", -7.561491, 110.796383],
-      ["Gawok", -7.589437, 110.744549],
-      ["Delanggu", -7.622235, 110.706595],
-      ["Ceper", -7.668951, 110.674844],
-      ["Klaten", -7.712433, 110.602911],
-      ["Srowot", -7.741498, 110.549159],
-      ["Brambanan", -7.756670, 110.500398],
-      ["Maguwo", -7.785123, 110.436743],
-      ["Lempuyangan", -7.790080, 110.375413],
-      ["Yogyakarta", -7.789328, 110.363068]
-    ];
+const map = L.map('map').setView([-7.6, 110.7], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
 
-    let map = L.map('map').setView([-7.7, 110.6], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const marker = L.marker([jadwal[0].lat, jadwal[0].lng]).addTo(map);
+let statusBox = document.getElementById("status");
 
-    let userMarker = null;
-    let line = null;
-    let stasiunMarkers = [];
-    let currentIndex = 0;
+function parseTime(timeStr) {
+  const now = new Date();
+  const [h, m, s] = timeStr.split(":").map(Number);
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, s);
+}
 
-    // Gambar stasiun dan jalurnya
-    function tampilkanStasiun() {
-      const coords = [];
-      stasiunList.forEach(([nama, lat, lng]) => {
-        const marker = L.marker([lat, lng]).addTo(map).bindPopup(nama);
-        stasiunMarkers.push(marker);
-        coords.push([lat, lng]);
-      });
-      line = L.polyline(coords, { color: 'red' }).addTo(map);
+function updateTrainPosition() {
+  const now = new Date();
+
+  for (let i = 0; i < jadwal.length - 1; i++) {
+    const current = jadwal[i];
+    const next = jadwal[i + 1];
+    const depart = current.berangkat ? parseTime(current.berangkat) : null;
+    const arrive = next.tiba ? parseTime(next.tiba) : null;
+
+    if (depart && arrive && now >= depart && now <= arrive) {
+      const progress = (now - depart) / (arrive - depart);
+      const lat = current.lat + (next.lat - current.lat) * progress;
+      const lng = current.lng + (next.lng - current.lng) * progress;
+      marker.setLatLng([lat, lng]);
+      statusBox.innerHTML = `KA 727 berjalan menuju ${next.nama}`;
+      return;
     }
 
-    function getDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon / 2) ** 2;
-      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-    }
-
-    function updatePosisi(pos) {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const speed = pos.coords.speed ? (pos.coords.speed * 3.6) : 0;
-
-      document.getElementById("speed").textContent = speed.toFixed(1);
-
-      if (userMarker) map.removeLayer(userMarker);
-      userMarker = L.marker([lat, lng], {
-        icon: L.icon({
-          iconUrl: "https://cdn-icons-png.flaticon.com/512/61/61088.png",
-          iconSize: [30, 30]
-        })
-      }).addTo(map);
-
-      const [nextName, nextLat, nextLng] = stasiunList[Math.min(currentIndex + 1, stasiunList.length - 1)];
-      const jarak = getDistance(lat, lng, nextLat, nextLng);
-      document.getElementById("nextStation").textContent = nextName;
-      document.getElementById("distance").textContent = jarak.toFixed(2);
-
-      // Jika dekat dengan stasiun selanjutnya (< 0.2km), maka pindah ke index berikutnya
-      if (jarak < 0.2) {
-        currentIndex = Math.min(currentIndex + 1, stasiunList.length - 1);
-      }
-
-      // Deteksi jika berhenti di stasiun saat ini
-      const [curName, curLat, curLng] = stasiunList[currentIndex];
-      const distToCurrent = getDistance(lat, lng, curLat, curLng);
-
-      if (distToCurrent < 0.15 && speed < 2) {
-        document.getElementById("status").textContent = `Status: Berhenti di ${curName}`;
-      } else {
-        document.getElementById("status").textContent = "Status: Berjalan";
+    // Jika kereta sedang berhenti
+    if (current.tiba && current.berangkat) {
+      const tiba = parseTime(current.tiba);
+      const berangkat = parseTime(current.berangkat);
+      if (now >= tiba && now <= berangkat) {
+        marker.setLatLng([current.lat, current.lng]);
+        statusBox.innerHTML = `KA 727 berhenti di ${current.nama}`;
+        return;
       }
     }
+  }
 
-    tampilkanStasiun();
+  if (now < parseTime(jadwal[0].berangkat)) {
+    statusBox.innerHTML = `KA 727 belum berangkat`;
+    marker.setLatLng([jadwal[0].lat, jadwal[0].lng]);
+  } else {
+    const last = jadwal[jadwal.length - 1];
+    statusBox.innerHTML = `KA 727 telah tiba di ${last.nama}`;
+    marker.setLatLng([last.lat, last.lng]);
+  }
+}
 
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(updatePosisi, (e) => {
-        console.error("Geolocation error", e);
-        alert("Tidak dapat mengakses lokasi.");
-      }, { enableHighAccuracy: true });
-    } else {
-      alert("Geolocation tidak tersedia.");
-    }
-  </script>
-</body>
+setInterval(updateTrainPosition, 1000);
+</script></body>
 </html>
