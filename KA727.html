@@ -3,25 +3,24 @@
 <head>
   <title>Pelacak KRL KA727</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
     .info {
-      background: #c00;
-      color: white;
-      padding: 10px;
-      font-family: sans-serif;
-      font-size: 14px;
+      background: #c00; color: #fff; padding: 10px; font-family: sans-serif;
     }
-    .info span { display: inline-block; margin-right: 10px; }
+    .info span { display: inline-block; margin-right: 15px; }
   </style>
 </head>
 <body>
   <div class="info">
-    🚆 KRL KA727 Solo Balapan → Yogyakarta<br>
-    <span id="status">Status: -</span><br>
-    🌡️ Suhu: N/A ℃ 🚉 Kecepatan: <span id="speed">0</span> km/jam |
-    📍 Stasiun berikutnya: <span id="nextStation">-</span> ✏️ Jarak: <span id="distance">-</span> km
+    🚆 KRL KA727 Solo Balapan → Yogyakarta <br>
+    <span id="status">Status: -</span>
+    <span>🌡️ Suhu: N/A ℃</span>
+    <span>🚉 Kecepatan: <span id="speed">0</span> km/jam</span>
+    <br>
+    📍 Stasiun berikutnya: <span id="nextStation">-</span>
+    ✏️ Jarak: <span id="distance">-</span> km
   </div>
   <div id="map"></div>
 
@@ -47,20 +46,16 @@
     let userMarker = null;
     let line = null;
     let stasiunMarkers = [];
-    let lastPassedIndex = -1;
+    let currentIndex = 0;
 
+    // Gambar stasiun dan jalurnya
     function tampilkanStasiun() {
-      if (line) map.removeLayer(line);
-      stasiunMarkers.forEach(m => map.removeLayer(m));
-      stasiunMarkers = [];
-
       const coords = [];
       stasiunList.forEach(([nama, lat, lng]) => {
-        let marker = L.marker([lat, lng]).addTo(map).bindPopup(nama);
+        const marker = L.marker([lat, lng]).addTo(map).bindPopup(nama);
         stasiunMarkers.push(marker);
         coords.push([lat, lng]);
       });
-
       line = L.polyline(coords, { color: 'red' }).addTo(map);
     }
 
@@ -89,39 +84,36 @@
         })
       }).addTo(map);
 
-      let closestIndex = -1;
-      let closestDist = Infinity;
-      stasiunList.forEach(([_, sLat, sLng], i) => {
-        const d = getDistance(lat, lng, sLat, sLng);
-        if (d < closestDist) {
-          closestDist = d;
-          closestIndex = i;
-        }
-      });
-
-      // Jika sangat dekat dan kecepatan kecil, anggap sudah berhenti di stasiun
-      if (closestDist < 0.15 && speed < 2) {
-        lastPassedIndex = closestIndex;
-        document.getElementById("status").textContent = `Status: Berhenti di ${stasiunList[closestIndex][0]}`;
-      } else {
-        document.getElementById("status").textContent = "Status: Berjalan";
-      }
-
-      let nextIndex = lastPassedIndex + 1;
-      if (nextIndex >= stasiunList.length) nextIndex = stasiunList.length - 1;
-
-      const [nextName, nextLat, nextLng] = stasiunList[nextIndex];
+      const [nextName, nextLat, nextLng] = stasiunList[Math.min(currentIndex + 1, stasiunList.length - 1)];
       const jarak = getDistance(lat, lng, nextLat, nextLng);
       document.getElementById("nextStation").textContent = nextName;
       document.getElementById("distance").textContent = jarak.toFixed(2);
+
+      // Jika dekat dengan stasiun selanjutnya (< 0.2km), maka pindah ke index berikutnya
+      if (jarak < 0.2) {
+        currentIndex = Math.min(currentIndex + 1, stasiunList.length - 1);
+      }
+
+      // Deteksi jika berhenti di stasiun saat ini
+      const [curName, curLat, curLng] = stasiunList[currentIndex];
+      const distToCurrent = getDistance(lat, lng, curLat, curLng);
+
+      if (distToCurrent < 0.15 && speed < 2) {
+        document.getElementById("status").textContent = `Status: Berhenti di ${curName}`;
+      } else {
+        document.getElementById("status").textContent = "Status: Berjalan";
+      }
     }
 
     tampilkanStasiun();
 
     if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(updatePosisi, console.error, { enableHighAccuracy: true });
+      navigator.geolocation.watchPosition(updatePosisi, (e) => {
+        console.error("Geolocation error", e);
+        alert("Tidak dapat mengakses lokasi.");
+      }, { enableHighAccuracy: true });
     } else {
-      alert("Geolocation tidak didukung di perangkat ini.");
+      alert("Geolocation tidak tersedia.");
     }
   </script>
 </body>
