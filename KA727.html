@@ -1,117 +1,113 @@
-<!DOCTYPE html><html>
+<!DOCTYPE html>
+<html>
 <head>
-  <title>Pelacak KA727 Solo Balapan – Yogyakarta</title>
+  <title>KRL KA727 Solo Balapan – Yogyakarta</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
     #info {
-      position: absolute; top: 0; left: 0; right: 0;
-      background: darkred; color: white; padding: 10px;
-      font-family: sans-serif; font-size: 14px;
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background-color: #a00;
+      color: white;
+      padding: 8px;
+      font-family: sans-serif;
+      font-size: 14px;
       z-index: 1000;
     }
   </style>
 </head>
 <body>
-  <div id="info">
-    🚆 Kereta KRL KA727 Solo Balapan – Yogyakarta<br>
-    Rute: Solo Balapan → Yogyakarta<br>
-    Status: Berjalan<br>
-    🌡️ Suhu: N/A ℃ 🛤️ Kecepatan: <span id="kecepatan">0.0</span> km/jam |
-    📍 Stasiun berikutnya: <span id="stasiunBerikutnya">-</span> ✏️
-    Jarak: <span id="jarak">-</span> km
-  </div>
-  <div id="map"></div>  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>  <script>
-    const rute = [
-      ["Solo Balapan", -7.556868, 110.821221],
-      ["Purwosari", -7.561491, 110.796383],
-      ["Gawok", -7.589437, 110.744549],
-      ["Delanggu", -7.622235, 110.706595],
-      ["Ceper", -7.668951, 110.674844],
-      ["Klaten", -7.712433, 110.602911],
-      ["Srowot", -7.741498, 110.549159],
-      ["Brambanan", -7.756670, 110.500398],
-      ["Maguwo", -7.783097, 110.430144],
-      ["Lempuyangan", -7.789189, 110.374139],
-      ["Yogyakarta", -7.789471, 110.363340]
-    ];
+<div id="info">
+  <strong>Kereta KRL KA727 Solo Balapan – Yogyakarta</strong><br>
+  Rute: Solo Balapan → Yogyakarta<br>
+  Status: <span id="status">Mendeteksi...</span><br>
+  🌡 Suhu: N/A ℃ | 🏔 Kecepatan: <span id="speed">0.0</span> km/jam |
+  📍 Stasiun berikutnya: <span id="next">-</span> 📏 Jarak: <span id="jarak">-</span> km
+</div>
+<div id="map"></div>
 
-    let currentIndex = 0;
-    let sudahLewatStasiun = false;
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map('map').setView([-7.6, 110.7], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'Leaflet | © OpenStreetMap contributors'
+  }).addTo(map);
 
-    const map = L.map('map').setView(rute[0].slice(1), 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
+  const stasiun = [
+    { nama: "Solo Balapan", lat: -7.556868, lon: 110.821221 },
+    { nama: "Purwosari", lat: -7.561491, lon: 110.796383 },
+    { nama: "Gawok", lat: -7.589437, lon: 110.744549 },
+    { nama: "Delanggu", lat: -7.622235, lon: 110.706595 },
+    { nama: "Ceper", lat: -7.668951, lon: 110.674844 },
+    { nama: "Klaten", lat: -7.712433, lon: 110.602911 },
+    { nama: "Srowot", lat: -7.741498, lon: 110.549159 },
+    { nama: "Brambanan", lat: -7.756670, lon: 110.500398 },
+    { nama: "Maguwo", lat: -7.785123, lon: 110.436743 },
+    { nama: "Lempuyangan", lat: -7.790080, lon: 110.375413 },
+    { nama: "Yogyakarta", lat: -7.789328, lon: 110.363068 }
+  ];
 
-    rute.forEach(([nama, lat, lon]) => {
-      L.marker([lat, lon]).addTo(map).bindPopup(nama);
-    });
+  stasiun.forEach(s => {
+    L.marker([s.lat, s.lon]).addTo(map).bindPopup(s.nama);
+  });
 
-    const garis = L.polyline(rute.map(r => [r[1], r[2]]), {color: 'red'}).addTo(map);
+  const jalur = L.polyline(stasiun.map(s => [s.lat, s.lon]), { color: 'red' }).addTo(map);
+  const keretaIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/809/809957.png', iconSize: [30, 30] });
+  const markerKereta = L.marker([-7.556, 110.82], { icon: keretaIcon }).addTo(map);
 
-    const markerKereta = L.marker(rute[0].slice(1), {
-      icon: L.icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/34/34627.png",
-        iconSize: [25, 25]
-      })
-    }).addTo(map);
+  let indeksStasiun = 0;
 
-    function hitungJarak(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  function hitungJarak(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  function updatePosisi(pos) {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    const speed = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(1) : 0;
+
+    markerKereta.setLatLng([lat, lon]);
+    document.getElementById("speed").textContent = speed;
+
+    // Status otomatis
+    document.getElementById("status").textContent = speed > 0.5 ? "Berjalan" : "Berhenti";
+
+    // Deteksi stasiun berikutnya
+    if (indeksStasiun < stasiun.length) {
+      const stasiunSekarang = stasiun[indeksStasiun];
+      const jarak = hitungJarak(lat, lon, stasiunSekarang.lat, stasiunSekarang.lon);
+      document.getElementById("jarak").textContent = jarak.toFixed(2);
+
+      // Ganti ke stasiun berikutnya jika sudah lewat 0.3 km
+      if (jarak >= 0.3 && indeksStasiun < stasiun.length - 1) {
+        indeksStasiun++;
+      }
+
+      // Tampilkan nama stasiun berikutnya
+      if (indeksStasiun < stasiun.length) {
+        document.getElementById("next").textContent = stasiun[indeksStasiun].nama;
+      } else {
+        document.getElementById("next").textContent = "Akhir perjalanan";
+      }
     }
+  }
 
-    function updateStasiun(lat, lon) {
-      const [namaSekarang, latSekarang, lonSekarang] = rute[currentIndex];
-      const jarakKeSekarang = hitungJarak(lat, lon, latSekarang, lonSekarang);
+  function gagal(error) {
+    alert("Gagal mendeteksi lokasi: " + error.message);
+  }
 
-      if (jarakKeSekarang < 0.15) {
-        sudahLewatStasiun = true;
-      }
-
-      if (jarakKeSekarang > 0.3 && sudahLewatStasiun && currentIndex < rute.length - 1) {
-        currentIndex++;
-        sudahLewatStasiun = false;
-      }
-
-      const [namaBerikutnya, latBerikutnya, lonBerikutnya] = rute[currentIndex];
-      const jarakBerikutnya = hitungJarak(lat, lon, latBerikutnya, lonBerikutnya);
-
-      document.getElementById("stasiunBerikutnya").innerText = namaBerikutnya;
-      document.getElementById("jarak").innerText = jarakBerikutnya.toFixed(2);
-    }
-
-    let prevLat = null, prevLon = null, prevTime = null;
-
-    navigator.geolocation.watchPosition(pos => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      markerKereta.setLatLng([lat, lon]);
-
-      if (prevLat !== null) {
-        const jarak = hitungJarak(prevLat, prevLon, lat, lon);
-        const waktu = (Date.now() - prevTime) / 3600000;
-        const kecepatan = jarak / waktu;
-        document.getElementById("kecepatan").innerText = kecepatan.toFixed(1);
-      }
-
-      prevLat = lat;
-      prevLon = lon;
-      prevTime = Date.now();
-
-      updateStasiun(lat, lon);
-    }, err => {
-      alert("Gagal mendapatkan lokasi: " + err.message);
-    }, {
-      enableHighAccuracy: true,
-      maximumAge: 1000
-    });
-  </script></body>
+  navigator.geolocation.watchPosition(updatePosisi, gagal, {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: 5000
+  });
+</script>
+</body>
 </html>
